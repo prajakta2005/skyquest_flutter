@@ -1,8 +1,60 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final VoidCallback onToggleTheme;
   const HomeScreen({Key? key, required this.onToggleTheme}) : super(key: key);
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  String _locationText = 'Fetching location...';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _getCurrentLocation();
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever) {
+        setState(() {
+          _locationText = 'Location permission permanently denied.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      Position pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        _locationText = 'Lat: ${pos.latitude}, Long: ${pos.longitude}';
+        _isLoading = false;
+      });
+
+      // TODO: Fetch weather data with pos.latitude & pos.longitude.
+    } catch (e) {
+      setState(() {
+        _locationText = 'Error fetching location: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _getWeatherImage() {
+    // Dummy implementation; change later as per weather API response
+    return 'assets/images/1.png';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -11,7 +63,7 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'SkyQuest!',
+          'Weatherly',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
         backgroundColor: Colors.transparent,
@@ -22,19 +74,14 @@ class HomeScreen extends StatelessWidget {
             onSelected: (value) {
               switch (value) {
                 case 'Location':
-                  // TODO: Implement location picker
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Location clicked')),
-                  );
+                  _getCurrentLocation();
                   break;
                 case 'Forecast':
-                  // TODO: Implement forecast screen
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Forecast clicked')),
                   );
                   break;
                 case 'Share':
-                  // TODO: Implement share feature
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Share clicked')),
                   );
@@ -75,8 +122,10 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
           IconButton(
-            icon: Icon(isDark ? Icons.wb_sunny : Icons.nightlight_round),
-            onPressed: onToggleTheme,
+            icon: Icon(
+              isDark ? Icons.wb_sunny : Icons.nightlight_round,
+            ),
+            onPressed: widget.onToggleTheme,
           ),
         ],
       ),
@@ -92,45 +141,69 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
         child: SafeArea(
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withOpacity(0.08)
-                    : Colors.white.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
-                  width: 1.2,
+          child: Column(
+            children: [
+              // 📸 Top Weather Image
+              Expanded(
+                flex: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Image.asset(
+                    _getWeatherImage(),
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.cloud,
-                    size: 100,
-                    color: isDark ? Colors.tealAccent : Colors.blueAccent,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    '28°C',
-                    style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                          color: isDark ? Colors.white : Colors.black87,
-                          fontWeight: FontWeight.w600,
+              // 📍 Location Card
+              Expanded(
+                flex: 3,
+                child: Center(
+                  child: _isLoading
+                      ? const CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.08)
+                                : Colors.white.withOpacity(0.6),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.location_on,
+                                size: 100,
+                                color: isDark ? Colors.tealAccent : Colors.blueAccent,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Your Location',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      color: isDark ? Colors.white : Colors.black87,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _locationText,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: isDark ? Colors.white70 : Colors.black54,
+                                    ),
+                              ),
+                            ],
+                          ),
                         ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Pune, Maharashtra',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: isDark ? Colors.white70 : Colors.black54,
-                        ),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
