@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
   final VoidCallback onToggleTheme;
@@ -10,13 +11,18 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _locationText = 'Fetching location...';
   bool _isLoading = true;
+  String _locationText = 'Fetching location...';
+  double? _temp;
+  double? _humidity;
+  double? _minTemp;
+  double? _maxTemp;
 
   @override
   void initState() {
     super.initState();
     _getCurrentLocation();
+    _fetchWeatherData();
   }
 
   Future<void> _getCurrentLocation() async {
@@ -27,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       if (permission == LocationPermission.deniedForever) {
         setState(() {
-          _locationText = 'Location permission permanently denied.';
+          _locationText = 'Permission denied';
           _isLoading = false;
         });
         return;
@@ -39,26 +45,34 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         _locationText = 'Lat: ${pos.latitude}, Long: ${pos.longitude}';
-        _isLoading = false;
       });
 
-      // TODO: Fetch weather data with pos.latitude & pos.longitude.
+      _fetchWeatherData();
     } catch (e) {
       setState(() {
-        _locationText = 'Error fetching location: $e';
+        _locationText = 'Error: $e';
         _isLoading = false;
       });
     }
   }
 
-  String _getWeatherImage() {
-    // Dummy implementation; change later as per weather API response
-    return 'assets/images/1.png';
+  void _fetchWeatherData() {
+    setState(() {
+      _temp = 28.7;
+      _humidity = 64.5;
+      _minTemp = 21.3;
+      _maxTemp = 32.8;
+      _isLoading = false;
+    });
   }
+
+  String _getWeatherImage() => 'assets/images/9.png';
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dateText = DateFormat('EEEE, d MMM y').format(DateTime.now());
+    final cityName = 'Mumbai'; // Dummy city name — can be updated dynamically
 
     return Scaffold(
       appBar: AppBar(
@@ -69,62 +83,8 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
-              switch (value) {
-                case 'Location':
-                  _getCurrentLocation();
-                  break;
-                case 'Forecast':
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Forecast clicked')),
-                  );
-                  break;
-                case 'Share':
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Share clicked')),
-                  );
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'Location',
-                child: Row(
-                  children: [
-                    Icon(Icons.location_on, size: 20),
-                    SizedBox(width: 8),
-                    Text('Location'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'Forecast',
-                child: Row(
-                  children: [
-                    Icon(Icons.view_list, size: 20),
-                    SizedBox(width: 8),
-                    Text('Forecast'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'Share',
-                child: Row(
-                  children: [
-                    Icon(Icons.share, size: 20),
-                    SizedBox(width: 8),
-                    Text('Share'),
-                  ],
-                ),
-              ),
-            ],
-          ),
           IconButton(
-            icon: Icon(
-              isDark ? Icons.wb_sunny : Icons.nightlight_round,
-            ),
+            icon: Icon(isDark ? Icons.wb_sunny : Icons.nightlight_round),
             onPressed: widget.onToggleTheme,
           ),
         ],
@@ -141,71 +101,168 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: [
-              // 📸 Top Weather Image
-              Expanded(
-                flex: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Image.asset(
-                    _getWeatherImage(),
-                    fit: BoxFit.contain,
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
+                )
+              : Column(
+                  children: [
+                    // 📄 Top section: Date, City, Temp, Humidity
+                    Expanded(
+                      flex: 3,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 8),
+                            Text(
+                              dateText,
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.black87,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              cityName,
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black87,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _temp != null ? '${_temp!.toStringAsFixed(1)}°C' : '--',
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black,
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              _humidity != null ? 'Humidity: ${_humidity!.toStringAsFixed(0)}%' : '',
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.black87,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // 📷 Main weather image
+                            Image.asset(
+                              _getWeatherImage(),
+                              height: 260,
+                              fit: BoxFit.contain,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // 📊 Bottom grid section
+                    Expanded(
+                      flex: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: GridView.count(
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 8,
+                          childAspectRatio: 2,
+                          children: [
+                            _weatherCard(
+                              title: 'Min Temp',
+                              value: _minTemp != null ? '${_minTemp!.toStringAsFixed(1)}°C' : '--',
+                              isDark: isDark,
+                            ),
+                            _weatherCard(
+                              title: 'Max Temp',
+                              value: _maxTemp != null ? '${_maxTemp!.toStringAsFixed(1)}°C' : '--',
+                              isDark: isDark,
+                            ),
+                            _weatherCard(
+                              title: 'Sunrise',
+                              value: '06:15 AM',
+                              isDark: isDark,
+                            ),
+                            _weatherCard(
+                              title: 'Sunset',
+                              value: '06:32 PM',
+                              isDark: isDark,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _weatherCard({required String title, required String value, required bool isDark}) {
+    String imgPath;
+    switch (title) {
+      case 'Min Temp':
+        imgPath = 'assets/images/14.png';
+        break;
+      case 'Max Temp':
+        imgPath = 'assets/images/13.png';
+        break;
+      case 'Sunrise':
+        imgPath = 'assets/images/11.png';
+        break;
+      case 'Sunset':
+        imgPath = 'assets/images/12.png';
+        break;
+      default:
+        imgPath = 'assets/images/1.png';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image.asset(
+            imgPath,
+            width: 36,
+            height: 36,
+            fit: BoxFit.contain,
+          ),
+          const SizedBox(width: 6),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : Colors.black87,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-              // 📍 Location Card
-              Expanded(
-                flex: 3,
-                child: Center(
-                  child: _isLoading
-                      ? const CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        )
-                      : Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.white.withOpacity(0.08)
-                                : Colors.white.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.3),
-                              width: 1.2,
-                            ),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.location_on,
-                                size: 100,
-                                color: isDark ? Colors.tealAccent : Colors.blueAccent,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Your Location',
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                      color: isDark ? Colors.white : Colors.black87,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _locationText,
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: isDark ? Colors.white70 : Colors.black54,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
                 ),
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
