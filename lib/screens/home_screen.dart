@@ -4,6 +4,8 @@ import 'package:geocoding/geocoding.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:weather_app/data/my_data.dart';
+
 
 class HomeScreen extends StatefulWidget {
   final VoidCallback onToggleTheme;
@@ -23,9 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int? _sunrise;
   int? _sunset;
 
-  static const String apiKey = '4c93bd0e2fbe2e76dcb41e120021a7d7'; // 🔑 <-- put your OpenWeatherMap API key
 
-  @override
   void initState() {
     super.initState();
     _getLocationAndWeather();
@@ -51,8 +51,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _fetchWeatherData(double lat, double lon) async {
     try {
-      final url =
-          'https://api.openweathermap.org/data/2.5/weather?lat=$lat&lon=$lon&units=metric&appid=$apiKey';
+         final url = 'https://api.openweathermap.org/data/2.5/weather?lat=$lat&lon=$lon&units=metric&appid=$API_KEY';
+
       final response = await http.get(Uri.parse(url));
       final data = json.decode(response.body);
 
