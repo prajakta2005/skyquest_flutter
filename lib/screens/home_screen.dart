@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class HomeScreen extends StatefulWidget {
   final VoidCallback onToggleTheme;
@@ -12,77 +15,103 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
-  String _locationText = 'Fetching location...';
+  String _cityName = '';
   double? _temp;
   double? _humidity;
   double? _minTemp;
   double? _maxTemp;
+  int? _sunrise;
+  int? _sunset;
+
+  static const String apiKey = '4c93bd0e2fbe2e76dcb41e120021a7d7'; // 🔑 <-- put your OpenWeatherMap API key
 
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation();
-    _fetchWeatherData();
+    _getLocationAndWeather();
   }
 
-  Future<void> _getCurrentLocation() async {
+  Future<void> _getLocationAndWeather() async {
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.deniedForever) {
-        setState(() {
-          _locationText = 'Permission denied';
-          _isLoading = false;
-        });
-        return;
-      }
-
       Position pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
 
-      setState(() {
-        _locationText = 'Lat: ${pos.latitude}, Long: ${pos.longitude}';
-      });
+      List<Placemark> places =
+          await placemarkFromCoordinates(pos.latitude, pos.longitude);
+      if (places.isNotEmpty) {
+        _cityName = places.first.locality ?? '';
+      }
 
-      _fetchWeatherData();
+      await _fetchWeatherData(pos.latitude, pos.longitude);
     } catch (e) {
+      debugPrint('Error: $e');
+    }
+  }
+
+  Future<void> _fetchWeatherData(double lat, double lon) async {
+    try {
+      final url =
+          'https://api.openweathermap.org/data/2.5/weather?lat=$lat&lon=$lon&units=metric&appid=$apiKey';
+      final response = await http.get(Uri.parse(url));
+      final data = json.decode(response.body);
+
       setState(() {
-        _locationText = 'Error: $e';
+        _temp = data['main']['temp']?.toDouble();
+        _humidity = data['main']['humidity']?.toDouble();
+        _minTemp = data['main']['temp_min']?.toDouble();
+        _maxTemp = data['main']['temp_max']?.toDouble();
+        _sunrise = data['sys']['sunrise'];
+        _sunset = data['sys']['sunset'];
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error fetching weather: $e');
+      setState(() {
         _isLoading = false;
       });
     }
   }
 
-  void _fetchWeatherData() {
-    setState(() {
-      _temp = 28.7;
-      _humidity = 64.5;
-      _minTemp = 21.3;
-      _maxTemp = 32.8;
-      _isLoading = false;
-    });
-  }
-
-  String _getWeatherImage() => 'assets/images/9.png';
+  String _getWeatherImage() => 'assets/images/1.png';
+  String _formatTime(int? timestamp) =>
+      timestamp != null ? DateFormat('hh:mm a').format(DateTime.fromMillisecondsSinceEpoch(timestamp * 1000)) : '--';
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dateText = DateFormat('EEEE, d MMM y').format(DateTime.now());
-    final cityName = 'Mumbai'; // Dummy city name — can be updated dynamically
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Weatherly',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
+        title: const Text('SkyQuest', style: TextStyle(fontWeight: FontWeight.w600)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (_) {},
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'Location',
+                child: Row(
+                  children: [Icon(Icons.location_on, size: 20), SizedBox(width: 8), Text('Location')],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'Forecast',
+                child: Row(
+                  children: [Icon(Icons.view_list, size: 20), SizedBox(width: 8), Text('Forecast')],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'Share',
+                child: Row(
+                  children: [Icon(Icons.share, size: 20), SizedBox(width: 8), Text('Share')],
+                ),
+              ),
+            ],
+          ),
           IconButton(
             icon: Icon(isDark ? Icons.wb_sunny : Icons.nightlight_round),
             onPressed: widget.onToggleTheme,
@@ -102,67 +131,55 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: SafeArea(
           child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                )
+              ? const Center(child: CircularProgressIndicator(color: Colors.white))
               : Column(
                   children: [
-                    // 📄 Top section: Date, City, Temp, Humidity
+                    // Top card
                     Expanded(
                       flex: 3,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 8),
-                            Text(
-                              dateText,
-                              style: TextStyle(
-                                color: isDark ? Colors.white70 : Colors.black87,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
+                      child: Column(
+                        children: [
+                          Text(
+                            dateText,
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.black87,
+                              fontSize: 16,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              cityName,
-                              style: TextStyle(
-                                color: isDark ? Colors.white : Colors.black87,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _cityName,
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w600,
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _temp != null ? '${_temp!.toStringAsFixed(1)}°C' : '--',
-                              style: TextStyle(
-                                color: isDark ? Colors.white : Colors.black,
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                              ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _temp != null ? '${_temp!.toStringAsFixed(1)}°C' : '--',
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black,
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
                             ),
-                            Text(
-                              _humidity != null ? 'Humidity: ${_humidity!.toStringAsFixed(0)}%' : '',
-                              style: TextStyle(
-                                color: isDark ? Colors.white70 : Colors.black87,
-                                fontSize: 14,
-                              ),
+                          ),
+                          Text(
+                            _humidity != null ? 'Humidity: ${_humidity!.toStringAsFixed(0)}%' : '',
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.black87,
                             ),
-                            const SizedBox(height: 8),
-                            // 📷 Main weather image
-                            Image.asset(
-                              _getWeatherImage(),
-                              height: 260,
-                              fit: BoxFit.contain,
-                            ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 8),
+                          Image.asset(
+                            _getWeatherImage(),
+                            height: 180,
+                            fit: BoxFit.contain,
+                          ),
+                        ],
                       ),
                     ),
-                    // 📊 Bottom grid section
+                    // Bottom grid
                     Expanded(
                       flex: 2,
                       child: Padding(
@@ -177,21 +194,25 @@ class _HomeScreenState extends State<HomeScreen> {
                             _weatherCard(
                               title: 'Min Temp',
                               value: _minTemp != null ? '${_minTemp!.toStringAsFixed(1)}°C' : '--',
+                              imgPath: 'assets/images/14.png',
                               isDark: isDark,
                             ),
                             _weatherCard(
                               title: 'Max Temp',
                               value: _maxTemp != null ? '${_maxTemp!.toStringAsFixed(1)}°C' : '--',
+                              imgPath: 'assets/images/13.png',
                               isDark: isDark,
                             ),
                             _weatherCard(
                               title: 'Sunrise',
-                              value: '06:15 AM',
+                              value: _formatTime(_sunrise),
+                              imgPath: 'assets/images/11.png',
                               isDark: isDark,
                             ),
                             _weatherCard(
                               title: 'Sunset',
-                              value: '06:32 PM',
+                              value: _formatTime(_sunset),
+                              imgPath: 'assets/images/12.png',
                               isDark: isDark,
                             ),
                           ],
@@ -205,25 +226,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _weatherCard({required String title, required String value, required bool isDark}) {
-    String imgPath;
-    switch (title) {
-      case 'Min Temp':
-        imgPath = 'assets/images/14.png';
-        break;
-      case 'Max Temp':
-        imgPath = 'assets/images/13.png';
-        break;
-      case 'Sunrise':
-        imgPath = 'assets/images/11.png';
-        break;
-      case 'Sunset':
-        imgPath = 'assets/images/12.png';
-        break;
-      default:
-        imgPath = 'assets/images/1.png';
-    }
-
+  Widget _weatherCard({
+    required String title,
+    required String value,
+    required String imgPath,
+    required bool isDark,
+  }) {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -233,12 +241,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.asset(
-            imgPath,
-            width: 36,
-            height: 36,
-            fit: BoxFit.contain,
-          ),
+          Image.asset(imgPath, width: 36, height: 36),
           const SizedBox(width: 6),
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -251,13 +254,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 2),
               Text(
                 value,
                 style: TextStyle(
                   color: isDark ? Colors.white : Colors.black,
                   fontWeight: FontWeight.bold,
-                  fontSize: 14,
                 ),
               ),
             ],
